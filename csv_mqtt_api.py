@@ -7,11 +7,22 @@ from collections import deque
 
 app = FastAPI()
 
-# Caminho correto do CSV gerado pelo fator_potencia.py
+# Caminhos dos arquivos
 CSV_FILE = os.path.join(os.path.dirname(__file__), "../data/dados_fator_potencia.csv")
+FILTER_FILE = os.path.join(os.path.dirname(__file__), "../data/colunas_ignoradas.txt")
+
+# Função para carregar as colunas a serem ignoradas
+def load_ignored_columns(file_path):
+    if not os.path.exists(file_path):
+        print(f"Aviso: Arquivo {file_path} não encontrado. Nenhuma coluna será ignorada.")
+        return set()
+    
+    with open(file_path, "r", encoding="utf-8") as f:
+        ignored_columns = {line.strip() for line in f if line.strip()}  # Remove espaços e linhas vazias
+    return ignored_columns
 
 # Função para carregar o CSV na memória
-def load_csv(file_path):
+def load_csv(file_path, ignored_columns):
     if not os.path.exists(file_path):  # Verifica se o arquivo existe
         print(f"Erro: Arquivo {file_path} não encontrado.")
         return deque()
@@ -21,21 +32,25 @@ def load_csv(file_path):
         data = deque()
 
         for row in reader:
+            # Remove colunas ignoradas
+            filtered_row = {key: row[key] for key in row if key not in ignored_columns}
+            
             # Converte valores numéricos corretamente
-            for key in row:
+            for key in filtered_row:
                 try:
-                    row[key] = float(row[key]) if '.' in row[key] else int(row[key])
+                    filtered_row[key] = float(filtered_row[key]) if '.' in filtered_row[key] else int(filtered_row[key])
                 except ValueError:
                     pass  # Mantém como string se não for número
             
-            data.append(row)
+            data.append(filtered_row)
 
         if not data:
-            print(f"Erro: O arquivo {file_path} está vazio.")
+            print(f"Erro: O arquivo {file_path} está vazio ou todas as colunas foram ignoradas.")
         return data
 
-# Carrega os dados do CSV para a memória
-data_queue = load_csv(CSV_FILE)
+# Carrega as colunas ignoradas e os dados do CSV
+ignored_columns = load_ignored_columns(FILTER_FILE)
+data_queue = load_csv(CSV_FILE, ignored_columns)
 
 # Configuração MQTT
 BROKER = "mqtt.eclipseprojects.io"
